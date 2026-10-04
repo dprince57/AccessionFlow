@@ -8,6 +8,7 @@ import scanpy as sc
 import sys
 import shutil
 import logging
+import logging.handlers
 import getpass
 import yaml
 from pathlib import Path
@@ -16,10 +17,10 @@ if shutil.which("prefetch") is None:
     sys.exit("prefetch not found on PATH; install sra-tools")
 
 USER = getpass.getuser()
-base_dir = None
-log_dir = logging.getlogger("accessionflow")
+BASE_DIR = None
+log = logging.getLogger("accessionflow")
 
-config_search = [ os.environ.get("ACCESSIONFLOW_CONFIG"), "/etc/accessionflow/config.yaml",
+CONFIG_SEARCH = [ os.environ.get("ACCESSIONFLOW_CONFIG"), "/etc/accessionflow/config.yaml",
         str(Path.home() / ".config" / "accessionflow" / "config.yaml"),]
 
 def load_config():
@@ -37,7 +38,7 @@ def init():
     global BASE_DIR
     os.umask(0o002)
     cfg = load_config()
-    base_dir = Path(cfg["base_dir"]) / USER
+    BASE_DIR = Path(cfg["base_dir"]) / USER
     log_dir = Path(cfg["log_dir"])
     BASE_DIR.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -50,7 +51,7 @@ def init():
     logging.basicConfig(
         level=logging.INFO,
         format=f"%(asctime)s [%(levelname)s] [{USER}] %(message)s",
-        handlers=[logging.WatchedFileHandler(log_file), logging.StreamHandler()],
+        handlers=[logging.handlers.WatchedFileHandler(log_file), logging.StreamHandler()],
     )
 
 def run_step(sra, step, cmd):
@@ -64,13 +65,13 @@ def run_step(sra, step, cmd):
     return True
 
 def sra_process(sra_raw):
-    sra_base_dir = base_dir / sra_raw
+    sra_base_dir = BASE_DIR / sra_raw
     fastq_dir = sra_base_dir / "fastq"
 
     sra_base_dir.mkdir(parents=True, exist_ok=True)
     fastq_dir.mkdir(parents=True, exist_ok=True)
 
-        prefetch = ["prefetch", sra_raw, "--output-directory", str(sra_base_dir)]
+    prefetch = ["prefetch", sra_raw, "--output-directory", str(sra_base_dir)]
 
     if not run_step(sra_raw, "prefetch", prefetch):
         shutil.rmtree(sra_base_dir, ignore_errors=True)
@@ -88,6 +89,7 @@ def open_and_process_file(file):
 
 
 def main():
+    init()
     if len(sys.argv) > 1:
         for filename in sys.argv[1:]:
             open_and_process_file(filename)
